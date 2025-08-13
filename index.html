@@ -41,7 +41,7 @@
 <input type="number" step="0.0001" id="feeRate" value="0.0155">
 
 <label>匯率 (日幣→台幣，手動更新)：</label>
-<input type="number" step="0.0001" id="exchangeRate" value="4.88">
+<input type="number" step="0.0001" id="exchangeRate" value="0.205">
 
 <button onclick="calculate()">計算</button>
 
@@ -50,7 +50,7 @@
 <script>
 async function fetchExchangeRate() {
     try {
-        let res = await fetch("https://api.exchangerate.host/latest?base=TWD&symbols=JPY");
+        let res = await fetch("https://api.exchangerate.host/latest?base=JPY&symbols=TWD");
         let data = await res.json();
         if (data && data.rates && data.rates.TWD) {
             document.getElementById("exchangeRate").value = data.rates.TWD.toFixed(4);
