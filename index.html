@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>退稅計算器（PWA）</title>
+<link rel="manifest" href="manifest.json">
+<style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; background: #f4f4f4; }
+    h1 { text-align: center; font-size: 1.5em; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, select, button { width: 100%; padding: 10px; margin-top: 5px; font-size: 1em; box-sizing: border-box; }
+    button { margin-top: 15px; background: #4CAF50; color: white; border: none; font-size: 1.1em; cursor: pointer; border-radius: 5px; }
+    button:hover { background: #45a049; }
+    .result { margin-top: 20px; padding: 15px; border-radius: 5px; border: 1px solid #ccc; background: white; font-size: 1em; line-height: 1.5em; }
+</style>
+</head>
+<body>
+
+<h1>退稅計算器（PWA）</h1>
+
+<label>未稅價：</label>
+<input type="number" id="untaxed" value="1200">
+
+<label>折扣率 (例如 95折 = 0.95)：</label>
+<input type="number" step="0.01" id="discount" value="0.95">
+
+<label>稅率 (例如 10% = 0.10)：</label>
+<input type="number" step="0.01" id="taxRate" value="0.10">
+
+<label>退稅基礎：</label>
+<select id="refundBase">
+    <option value="tax">稅額</option>
+    <option value="total">含稅價</option>
+</select>
+
+<label>退稅比例 (例如退稅 8.45% = 0.0845，全額退稅 = 1)：</label>
+<input type="number" step="0.0001" id="refundRate" value="1">
+
+<label>退稅手續費比例 (例如 1.55% = 0.0155)：</label>
+<input type="number" step="0.0001" id="feeRate" value="0.0155">
+
+<label>匯率 (日幣→台幣，自動更新)：</label>
+<input type="number" step="0.0001" id="exchangeRate" value="4.5">
+
+<button onclick="calculate()">計算</button>
+
+<div class="result" id="result">請輸入資料並按「計算」</div>
+
+<script>
+async function fetchExchangeRate() {
+    try {
+        let res = await fetch("https://api.exchangerate.host/latest?base=JPY&symbols=TWD");
+        let data = await res.json();
+        if (data && data.rates && data.rates.TWD) {
+            document.getElementById("exchangeRate").value = data.rates.TWD.toFixed(4);
+        }
+    } catch (e) {
+        console.error("匯率抓取失敗，使用預設值", e);
+    }
+}
+
+function calculate() {
+    let untaxed = parseFloat(document.getElementById("untaxed").value);
+    let discount = parseFloat(document.getElementById("discount").value);
+    let taxRate = parseFloat(document.getElementById("taxRate").value);
+    let refundBase = document.getElementById("refundBase").value;
+    let refundRate = parseFloat(document.getElementById("refundRate").value);
+    let feeRate = parseFloat(document.getElementById("feeRate").value);
+    let exchangeRate = parseFloat(document.getElementById("exchangeRate").value);
+
+    let priceAfterDiscount = untaxed * discount;
+    let taxAmount = priceAfterDiscount * taxRate;
+    let totalPrice = priceAfterDiscount + taxAmount;
+
+    let refundAmount = 0;
+    if (refundBase === "tax") {
+        refundAmount = taxAmount * refundRate * (1 - feeRate);
+    } else {
+        refundAmount = totalPrice * refundRate * (1 - feeRate);
+    }
+
+    let finalPrice = totalPrice - refundAmount;
+    let twdCost = finalPrice * exchangeRate;
+    let twdCostWithCardFee = twdCost * 1.015;
+
+    document.getElementById("result").innerHTML = `
+        <b>折後未稅價：</b> ${priceAfterDiscount.toFixed(2)}<br>
+        <b>稅額：</b> ${taxAmount.toFixed(2)}<br>
+        <b>含稅價：</b> ${totalPrice.toFixed(2)}<br>
+        <b>退稅金額：</b> ${refundAmount.toFixed(2)}<br>
+        <b>最終實付：</b> ${finalPrice.toFixed(2)}<br>
+        <b>台幣成本：</b> ${twdCost.toFixed(2)}<br>
+        <b>台幣成本(含1.5%刷卡手續費)：</b> ${twdCostWithCardFee.toFixed(2)}
+    `;
+}
+
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('service-worker.js').then(() => {
+        console.log("Service Worker 已註冊");
+    });
+}
+
+fetchExchangeRate();
+</script>
+
+</body>
+</html>
