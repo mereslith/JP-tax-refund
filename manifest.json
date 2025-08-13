@@ -1,6 +1,6 @@
 {
-  "name": "退稅計算器",
-  "short_name": "退稅計算",
+  "name": "高島屋高島屋退稅器",
+  "short_name": "高島屋退稅",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",

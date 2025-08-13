@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>退稅計算器（PWA）</title>
+<title>高島屋退稅計算器</title>
 <link rel="manifest" href="manifest.json">
 <style>
     body { font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; background: #f4f4f4; }
@@ -17,7 +17,7 @@
 </head>
 <body>
 
-<h1>退稅計算器（PWA）</h1>
+<h1>高島屋退稅計算器</h1>
 
 <label>未稅價：</label>
 <input type="number" id="untaxed" value="1200">
@@ -40,8 +40,8 @@
 <label>退稅手續費比例 (例如 1.55% = 0.0155)：</label>
 <input type="number" step="0.0001" id="feeRate" value="0.0155">
 
-<label>匯率 (日幣→台幣，自動更新)：</label>
-<input type="number" step="0.0001" id="exchangeRate" value="4.5">
+<label>匯率 (日幣→台幣，手動更新)：</label>
+<input type="number" step="0.0001" id="exchangeRate" value="4.88">
 
 <button onclick="calculate()">計算</button>
 
@@ -50,7 +50,7 @@
 <script>
 async function fetchExchangeRate() {
     try {
-        let res = await fetch("https://api.exchangerate.host/latest?base=JPY&symbols=TWD");
+        let res = await fetch("https://api.exchangerate.host/latest?base=TWD&symbols=JPY");
         let data = await res.json();
         if (data && data.rates && data.rates.TWD) {
             document.getElementById("exchangeRate").value = data.rates.TWD.toFixed(4);
