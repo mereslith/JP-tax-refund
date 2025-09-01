@@ -3,102 +3,130 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>高島屋退稅計算器</title>
+<title>高島屋退稅計算器（PWA）</title>
 <link rel="manifest" href="manifest.json">
 <style>
-    body { font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; background: #f4f4f4; }
-    h1 { text-align: center; font-size: 1.5em; }
-    label { display: block; margin-top: 10px; font-weight: bold; }
-    input, select, button { width: 100%; padding: 10px; margin-top: 5px; font-size: 1em; box-sizing: border-box; }
-    button { margin-top: 15px; background: #4CAF50; color: white; border: none; font-size: 1.1em; cursor: pointer; border-radius: 5px; }
-    button:hover { background: #45a049; }
-    .result { margin-top: 20px; padding: 15px; border-radius: 5px; border: 1px solid #ccc; background: white; font-size: 1em; line-height: 1.5em; }
+  body { font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; background: #f4f4f4; }
+  h1 { text-align: center; font-size: 1.5em; }
+  label { display: block; margin-top: 10px; font-weight: bold; }
+  input, button { width: 100%; padding: 10px; margin-top: 5px; font-size: 1em; box-sizing: border-box; }
+  button { margin-top: 15px; background: #4CAF50; color: white; border: none; font-size: 1.1em; cursor: pointer; border-radius: 5px; }
+  button:hover { background: #45a049; }
+  .result { margin-top: 20px; padding: 15px; border-radius: 5px; border: 1px solid #ccc; background: white; font-size: 1em; line-height: 1.5em; }
+  .rate-row { margin-top: 6px; font-size: 0.95em; color: #333; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .muted { color: #666; font-size: 0.9em; }
 </style>
 </head>
 <body>
 
-<h1>高島屋退稅計算器</h1>
+<h1>高島屋退稅計算器（PWA）</h1>
 
 <label>未稅價：</label>
 <input type="number" id="untaxed" value="1200">
 
-<label>折扣率 (例如 95折 = 0.95)：</label>
+<label>折扣率（例如 95折 = 0.95）：</label>
 <input type="number" step="0.01" id="discount" value="0.95">
 
-<label>稅率 (例如 10% = 0.10)：</label>
+<label>稅率（例如 10% = 0.10）：</label>
 <input type="number" step="0.01" id="taxRate" value="0.10">
 
-<label>退稅基礎：</label>
-<select id="refundBase">
-    <option value="tax">稅額</option>
-    <option value="total">含稅價</option>
-</select>
-
-<label>退稅比例 (例如退稅 8.45% = 0.0845，全額退稅 = 1)：</label>
+<label>退稅比例（例如 8.45% = 0.0845，全額退稅 = 1）：</label>
 <input type="number" step="0.0001" id="refundRate" value="1">
 
-<label>退稅手續費比例 (例如 1.55% = 0.0155)：</label>
+<label>退稅手續費比例（例如 1.55% = 0.0155）：</label>
 <input type="number" step="0.0001" id="feeRate" value="0.0155">
 
-<label>匯率 (日幣→台幣，手動更新)：</label>
+<label>匯率（1 日幣 = 多少台幣，自動更新）：</label>
 <input type="number" step="0.0001" id="exchangeRate" value="0.205">
+
+<div class="rate-row">
+  <div class="muted">資料來源：exchangerate.host</div>
+  <div class="muted" id="rateStamp">更新中…</div>
+</div>
 
 <button onclick="calculate()">計算</button>
 
 <div class="result" id="result">請輸入資料並按「計算」</div>
 
 <script>
+function formatTSTimestamp(d) {
+  try {
+    return new Intl.DateTimeFormat('zh-TW', {
+      timeZone: 'Asia/Taipei',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    }).format(d);
+  } catch {
+    return d.toLocaleString();
+  }
+}
+
+function setRate(rate, dateObj) {
+  const input = document.getElementById('exchangeRate');
+  input.value = Number(rate).toFixed(4);
+  const ts = dateObj ? dateObj.toISOString() : new Date().toISOString();
+  localStorage.setItem('jpy_twd_rate', String(rate));
+  localStorage.setItem('jpy_twd_rate_ts', ts);
+  document.getElementById('rateStamp').textContent = '更新時間：' + formatTSTimestamp(new Date(ts));
+}
+
+(function bootstrapRateFromCache(){
+  const cached = localStorage.getItem('jpy_twd_rate');
+  const ts = localStorage.getItem('jpy_twd_rate_ts');
+  if (cached && ts) {
+    document.getElementById('exchangeRate').value = Number(cached).toFixed(4);
+    document.getElementById('rateStamp').textContent = '上次更新：' + formatTSTimestamp(new Date(ts));
+  }
+})();
+
 async function fetchExchangeRate() {
-    try {
-        let res = await fetch("https://api.exchangerate.host/latest?base=JPY&symbols=TWD");
-        let data = await res.json();
-        if (data && data.rates && data.rates.TWD) {
-            document.getElementById("exchangeRate").value = data.rates.TWD.toFixed(4);
-        }
-    } catch (e) {
-        console.error("匯率抓取失敗，使用預設值", e);
+  try {
+    const res = await fetch("https://api.exchangerate.host/latest?base=JPY&symbols=TWD");
+    const data = await res.json();
+    if (data && data.rates && data.rates.TWD) {
+      setRate(data.rates.TWD, new Date(data.date || Date.now()));
+    } else {
+      document.getElementById('rateStamp').textContent = '更新失敗（資料格式）';
     }
+  } catch (e) {
+    console.error("匯率抓取失敗", e);
+    document.getElementById('rateStamp').textContent = '更新失敗（可離線手動輸入）';
+  }
 }
 
 function calculate() {
-    let untaxed = parseFloat(document.getElementById("untaxed").value);
-    let discount = parseFloat(document.getElementById("discount").value);
-    let taxRate = parseFloat(document.getElementById("taxRate").value);
-    let refundBase = document.getElementById("refundBase").value;
-    let refundRate = parseFloat(document.getElementById("refundRate").value);
-    let feeRate = parseFloat(document.getElementById("feeRate").value);
-    let exchangeRate = parseFloat(document.getElementById("exchangeRate").value);
+  const untaxed    = parseFloat(document.getElementById("untaxed").value)   || 0;
+  const discount   = parseFloat(document.getElementById("discount").value)  || 0;
+  const taxRate    = parseFloat(document.getElementById("taxRate").value)   || 0;
+  const refundRate = parseFloat(document.getElementById("refundRate").value)|| 0;
+  const feeRate    = parseFloat(document.getElementById("feeRate").value)   || 0;
+  const exchangeRate = parseFloat(document.getElementById("exchangeRate").value) || 0;
 
-    let priceAfterDiscount = untaxed * discount;
-    let taxAmount = priceAfterDiscount * taxRate;
-    let totalPrice = priceAfterDiscount + taxAmount;
+  const priceAfterDiscount = untaxed * discount;
+  const taxAmount = priceAfterDiscount * taxRate;
+  const totalPrice = priceAfterDiscount + taxAmount;
 
-    let refundAmount = 0;
-    if (refundBase === "tax") {
-        refundAmount = taxAmount * refundRate * (1 - feeRate);
-    } else {
-        refundAmount = totalPrice * refundRate * (1 - feeRate);
-    }
+  const refundAmount = taxAmount * refundRate * (1 - feeRate);
 
-    let finalPrice = totalPrice - refundAmount;
-    let twdCost = finalPrice * exchangeRate;
-    let twdCostWithCardFee = twdCost * 1.015;
+  const finalPrice = totalPrice - refundAmount;
+  const twdCost = finalPrice * exchangeRate;
+  const twdCostWithCardFee = twdCost * 1.015;
 
-    document.getElementById("result").innerHTML = `
-        <b>折後未稅價：</b> ${priceAfterDiscount.toFixed(2)}<br>
-        <b>稅額：</b> ${taxAmount.toFixed(2)}<br>
-        <b>含稅價：</b> ${totalPrice.toFixed(2)}<br>
-        <b>退稅金額：</b> ${refundAmount.toFixed(2)}<br>
-        <b>最終實付：</b> ${finalPrice.toFixed(2)}<br>
-        <b>台幣成本：</b> ${twdCost.toFixed(2)}<br>
-        <b>台幣成本(含1.5%刷卡手續費)：</b> ${twdCostWithCardFee.toFixed(2)}
-    `;
+  document.getElementById("result").innerHTML = `
+    <b>折後未稅價：</b> ${priceAfterDiscount.toFixed(2)}<br>
+    <b>稅額：</b> ${taxAmount.toFixed(2)}<br>
+    <b>含稅價：</b> ${totalPrice.toFixed(2)}<br>
+    <b>退稅金額：</b> ${refundAmount.toFixed(2)}<br>
+    <b>最終實付：</b> ${finalPrice.toFixed(2)}<br>
+    <b>台幣成本：</b> ${twdCost.toFixed(2)}<br>
+    <b>台幣成本(含1.5%刷卡手續費)：</b> ${twdCostWithCardFee.toFixed(2)}
+  `;
 }
 
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('service-worker.js').then(() => {
-        console.log("Service Worker 已註冊");
-    });
+  navigator.serviceWorker.register('service-worker.js').then(() => {
+    console.log("Service Worker 已註冊");
+  });
 }
 
 fetchExchangeRate();
